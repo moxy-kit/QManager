@@ -804,6 +804,12 @@ install_frontend() {
 
     cp -r "$SRC_FRONTEND"/. "$WWW_ROOT"/ || die "Failed to copy frontend to $WWW_ROOT"
 
+    # uhttpd requires world-readable files; fix in case tarball has restrictive perms
+    find "$WWW_ROOT" -type d -exec chmod 755 {} \;
+    find "$WWW_ROOT" -type f -exec chmod 644 {} \;
+    # Restore executable bit on CGI scripts (cgi-bin was preserved above)
+    find "$WWW_ROOT/cgi-bin" -type f -name '*.sh' -exec chmod 755 {} \; 2>/dev/null || true
+
     local n
     n=$(count_files "$SRC_FRONTEND")
     info "Frontend installed ($n files)"

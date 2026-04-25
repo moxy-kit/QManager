@@ -97,7 +97,8 @@ if [ $CURL_RC -ne 0 ]; then
 fi
 
 # --- Check loginResponseCode in response body --------------------------------
-LOGIN_RC=$(printf '%s' "$CM_RESPONSE" | jq -r '.loginResponseCode // empty' 2>/dev/null)
+# CellMapper nests the code inside responseData: {"responseData":{"loginResponseCode":"OKAY"}}
+LOGIN_RC=$(printf '%s' "$CM_RESPONSE" | jq -r '.responseData.loginResponseCode // .loginResponseCode // empty' 2>/dev/null)
 LOGIN_ERR=$(printf '%s' "$CM_RESPONSE" | jq -r '.error // empty' 2>/dev/null)
 
 if [ "$LOGIN_RC" != "OKAY" ]; then

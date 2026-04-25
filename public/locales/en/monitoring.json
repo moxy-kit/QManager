@@ -486,7 +486,7 @@
     "account_test_connection_button": "Test Connection",
     "account_testing": "Testing…",
     "account_title": "Account",
-    "account_token_days": "{{days}} days remaining",
+    "account_token_days": "{{count}} days remaining",
     "action_pause": "Pause",
     "action_restart": "Restart",
     "action_resume": "Resume",

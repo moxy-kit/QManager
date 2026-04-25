@@ -10,7 +10,9 @@
 # IMPORTANT: CellMapper returns HTTP 200 for BOTH success and failure.
 # We must inspect the JSON body's loginResponseCode field.
 #
-# POST body (form-urlencoded): username=<user>&password=<pass>
+# POST body (JSON or form-urlencoded):
+#   JSON:            {"username":"<user>","password":"<pass>"}
+#   form-urlencoded:  username=<user>&password=<pass>
 #
 # Response on success: {"success":true,"username":"<user>"}
 # Response on failure: {"success":false,"error":"<message>"}
@@ -55,9 +57,18 @@ fi
 # --- Read POST body ----------------------------------------------------------
 cgi_read_post
 
-# --- Parse credentials -------------------------------------------------------
-CM_USERNAME=$(parse_form_field "$POST_DATA" "username")
-CM_PASSWORD=$(parse_form_field "$POST_DATA" "password")
+# --- Parse credentials (JSON or form-urlencoded) -----------------------------
+# Detect JSON body by checking for leading '{'
+case "$POST_DATA" in
+    '{'*)
+        CM_USERNAME=$(printf '%s' "$POST_DATA" | jq -r '.username // empty' 2>/dev/null)
+        CM_PASSWORD=$(printf '%s' "$POST_DATA" | jq -r '.password // empty' 2>/dev/null)
+        ;;
+    *)
+        CM_USERNAME=$(parse_form_field "$POST_DATA" "username")
+        CM_PASSWORD=$(parse_form_field "$POST_DATA" "password")
+        ;;
+esac
 
 if [ -z "$CM_USERNAME" ] || [ -z "$CM_PASSWORD" ]; then
     cgi_error "missing_credentials" "username and password are required"

@@ -63,7 +63,7 @@ if [ $CURL_RC -ne 0 ]; then
 fi
 
 # --- Parse response ----------------------------------------------------------
-LOGIN_STATUS=$(printf '%s' "$CM_RESPONSE" | jq -r '.loginCheckResponseCode // empty' 2>/dev/null)
+LOGIN_STATUS=$(printf '%s' "$CM_RESPONSE" | jq -r '.responseData.loginCheckResponseCode // .loginCheckResponseCode // empty' 2>/dev/null)
 ERR_FIELD=$(printf '%s' "$CM_RESPONSE" | jq -r '.error // empty' 2>/dev/null)
 
 case "$LOGIN_STATUS" in

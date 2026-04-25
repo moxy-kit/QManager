@@ -21,7 +21,7 @@
 # Response (source unavailable):
 #   { "success":false, "error":"source_unavailable", "detail":"..." }
 #
-# Endpoint: GET /cgi-bin/quecmanager/cellmapper/gps-test.sh
+# Endpoint: GET|POST /cgi-bin/quecmanager/cellmapper/gps-test.sh
 # Install location: /www/cgi-bin/quecmanager/cellmapper/gps-test.sh
 # =============================================================================
 
@@ -31,9 +31,9 @@ cgi_handle_options
 
 CM_UA="Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 CM Android/5.6.5"
 
-# --- Enforce GET only --------------------------------------------------------
-if [ "$REQUEST_METHOD" != "GET" ]; then
-    cgi_error "method_not_allowed" "Use GET"
+# --- Enforce GET or POST -----------------------------------------------------
+if [ "$REQUEST_METHOD" != "GET" ] && [ "$REQUEST_METHOD" != "POST" ]; then
+    cgi_error "method_not_allowed" "Use GET or POST"
     exit 0
 fi
 

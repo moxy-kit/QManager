@@ -212,7 +212,7 @@ function RetentionForm({
                   <SelectContent>
                     {[5, 10, 25, 50, 100, 250, 500].map((mb) => (
                       <SelectItem key={mb} value={String(mb)}>
-                        {t("cellmapper.retention_size_option", { mb })}
+                        {t("cellmapper.retention_size_option", { size: mb })}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -307,7 +307,7 @@ function RetentionForm({
             {t("cellmapper.retention_rotation_title")}
           </p>
           <p className="text-sm text-muted-foreground">
-            {t("cellmapper.retention_rotation_info")}
+            {t("cellmapper.retention_rotation_info", { size: bufferSizeMb, days: bufferAgeDays })}
           </p>
         </div>
 

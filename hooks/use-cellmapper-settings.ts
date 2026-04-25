@@ -61,7 +61,7 @@ export interface UseCellMapperSettingsReturn {
   saveSettings: (partial: Partial<CellMapperSettings>) => Promise<boolean>;
   purgeBuffer: () => Promise<boolean>;
   exportCsv: () => Promise<void>;
-  testGps: () => Promise<{ success: boolean; message: string }>;
+  testGps: () => Promise<{ success: boolean; message: string; fixType?: string; satellites?: number }>;
   testConnection: () => Promise<{ success: boolean; message: string }>;
   testEndpoint: () => Promise<{ success: boolean; message: string }>;
   refresh: () => void;
@@ -213,6 +213,8 @@ export function useCellMapperSettings(): UseCellMapperSettingsReturn {
   const testGps = useCallback(async (): Promise<{
     success: boolean;
     message: string;
+    fixType?: string;
+    satellites?: number;
   }> => {
     try {
       const resp = await authFetch(GPS_TEST_ENDPOINT, { method: "POST" });
@@ -220,6 +222,8 @@ export function useCellMapperSettings(): UseCellMapperSettingsReturn {
       return {
         success: !!data.success,
         message: data.message || data.error || "",
+        fixType: data.fix?.fix_type,
+        satellites: data.fix?.satellites,
       };
     } catch {
       return { success: false, message: "Request failed" };

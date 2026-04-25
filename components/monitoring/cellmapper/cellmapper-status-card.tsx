@@ -82,6 +82,7 @@ interface CellMapperStatusCardProps {
   } | null;
   isLoading: boolean;
   isStale: boolean;
+  lastUpdated: number | null;
 }
 
 // ─── Badge style maps ────────────────────────────────────────────────────────
@@ -144,8 +145,19 @@ export function CellMapperStatusCard({
   status,
   isLoading,
   isStale,
+  lastUpdated,
 }: CellMapperStatusCardProps) {
   const { t } = useTranslation("monitoring");
+
+  // Compute human-readable "ago" string for stale warnings
+  const staleAgo = useMemo(() => {
+    if (lastUpdated === null) return "";
+    const seconds = Math.round((Date.now() - lastUpdated) / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    return `${Math.round(minutes / 60)}h`;
+  }, [lastUpdated]);
 
   // ── Collector badge label map (i18n, memoised) ──────────────────────────
   const collectorBadgeLabels = useMemo<Record<string, string>>(
@@ -198,7 +210,7 @@ export function CellMapperStatusCard({
   const gpsFixType = gpsFix?.type ?? "none";
   const gpsBadge = GPS_BADGE[gpsFixType] ?? GPS_BADGE.none;
   const gpsLabel = gpsFix
-    ? `${gpsFixType} · ${gpsFix.sats} ${t("cellmapper.gps_sats")}`
+    ? t("cellmapper.gps_sats", { type: gpsFixType, sats: gpsFix.sats })
     : t("cellmapper.gps_no_fix");
 
   // Account badge
@@ -307,7 +319,7 @@ export function CellMapperStatusCard({
             <Alert>
               <AlertTriangleIcon className="size-4" />
               <AlertDescription>
-                {t("cellmapper.stale_data_warning")}
+                {t("cellmapper.stale_data_warning", { ago: staleAgo })}
               </AlertDescription>
             </Alert>
           )}

@@ -68,6 +68,7 @@ const CellMapperComponent = () => {
           status={hookData.status}
           isLoading={hookData.isLoading}
           isStale={hookData.isStale}
+          lastUpdated={hookData.lastUpdated}
         />
         <CellMapperMapCard
           gps={hookData.status?.gps ?? null}

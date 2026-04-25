@@ -58,7 +58,7 @@ interface CellMapperCollectionCardProps {
   isLoading: boolean;
   isSaving: boolean;
   onSave: (partial: Record<string, unknown>) => Promise<boolean>;
-  onTestGps: () => Promise<{ success: boolean; message: string }>;
+  onTestGps: () => Promise<{ success: boolean; message: string; fixType?: string; satellites?: number }>;
   /** Trigger consent dialog when enabling without consent */
   onConsentRequired: () => void;
 }
@@ -128,7 +128,7 @@ interface CollectionFormProps {
   adapterName: string | null;
   isSaving: boolean;
   onSave: (partial: Record<string, unknown>) => Promise<boolean>;
-  onTestGps: () => Promise<{ success: boolean; message: string }>;
+  onTestGps: () => Promise<{ success: boolean; message: string; fixType?: string; satellites?: number }>;
   onConsentRequired: () => void;
 }
 
@@ -217,7 +217,7 @@ function CollectionForm({
     try {
       const result = await onTestGps();
       if (result.success)
-        toast.success(t("cellmapper.toast_gps_test_ok"));
+        toast.success(t("cellmapper.toast_gps_test_ok", { fix: result.fixType ?? "—", sats: result.satellites ?? 0 }));
       else
         toast.error(
           t("cellmapper.toast_gps_test_fail", { reason: result.message }),

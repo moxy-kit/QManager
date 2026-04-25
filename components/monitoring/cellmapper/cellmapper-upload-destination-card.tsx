@@ -231,7 +231,7 @@ function UploadDestinationForm({
       if (result.success) {
         toast.success(result.message || t("cellmapper.upload_cfg_test_success"));
       } else {
-        toast.error(result.message || t("cellmapper.upload_cfg_test_error"));
+        toast.error(t("cellmapper.upload_cfg_test_error", { reason: result.message || t("cellmapper.upload_cfg_test_error_unknown") }));
       }
     } finally {
       setIsTesting(false);

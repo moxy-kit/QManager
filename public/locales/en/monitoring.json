@@ -761,6 +761,7 @@
     "upload_cfg_test": "Test Endpoint",
     "upload_cfg_test_btn": "Test Endpoint",
     "upload_cfg_test_error": "Endpoint test failed: {{reason}}",
+    "upload_cfg_test_error_unknown": "unknown error",
     "upload_cfg_test_success": "Endpoint test passed",
     "upload_cfg_title": "Upload Destination",
     "upload_description": "Monitor and manually trigger measurement uploads.",

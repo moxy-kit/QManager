@@ -1,0 +1,34 @@
+#!/bin/sh
+# =============================================================================
+# qmanager_cm_collector — CellMapper Measurement Collector (stub)
+# =============================================================================
+# Reads cell tower measurements and GPS coordinates from the modem (or
+# configured GPS source) and writes serialized payloads into the CellMapper
+# SQLite queue at /overlay/cellmapper/queue.db.
+#
+# This is a STUB. Full collector logic will be implemented in PR 2.
+# The stub exits cleanly so procd does not enter a respawn loop before
+# the real implementation is deployed.
+#
+# Install location: /usr/bin/qmanager_cm_collector
+# Dependencies:     /usr/lib/qmanager/qlog.sh, /usr/lib/qmanager/cellmapper_db.sh,
+#                   /usr/lib/qmanager/cellmapper_uci.sh
+# =============================================================================
+
+# Source the logging library. If unavailable (e.g. during early install),
+# define no-op stubs so the rest of this script stays safe.
+# shellcheck disable=SC1091
+. /usr/lib/qmanager/qlog.sh 2>/dev/null || {
+    qlog_init() { :; }
+    qlog_info() { :; }
+    qlog_warn() { :; }
+    qlog_error() { :; }
+}
+
+qlog_init "cm_collector"
+qlog_info "CellMapper collector not yet configured — exiting"
+
+# Stub exits 0 so procd records a clean exit rather than a failure.
+# The respawn threshold (3600 5 5) will not be tripped by a clean exit,
+# so this effectively means procd will NOT respawn the stub — intentional.
+exit 0

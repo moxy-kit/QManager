@@ -591,9 +591,8 @@ function CollectionForm({
                 saved={saved}
                 className="w-fit"
                 disabled={!isDirty}
-              >
-                {t("cellmapper.collection_save_button")}
-              </SaveButton>
+                label={t("cellmapper.collection_save_button")}
+              />
             </div>
           </FieldGroup>
         </form>

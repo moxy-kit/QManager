@@ -108,7 +108,7 @@ export function useCellMapperSettings(): UseCellMapperSettingsReturn {
           // Map the flat response to CellMapperSettings (fields map 1:1)
           setSettings(settingsData as unknown as CellMapperSettings);
         } else {
-          setError(resolveErrorMessage(settingsData, t));
+          setError(resolveErrorMessage(t, settingsData.error, settingsData.detail, "Failed to fetch settings"));
         }
 
         if (statusData.success) {
@@ -155,7 +155,7 @@ export function useCellMapperSettings(): UseCellMapperSettingsReturn {
           await fetchSettings(true); // silent re-fetch
           return true;
         } else {
-          setError(resolveErrorMessage(data, t));
+          setError(resolveErrorMessage(t, data.error, data.detail, "Failed to save settings"));
           return false;
         }
       } catch (err) {

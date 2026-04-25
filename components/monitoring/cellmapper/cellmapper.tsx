@@ -2,6 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import { useCellMapper } from "@/hooks/use-cellmapper";
+import { CellMapperMapCard } from "./cellmapper-map-card";
 import { CellMapperStatusCard } from "./cellmapper-status-card";
 import { CellMapperUploadCard } from "./cellmapper-upload-card";
 import { CellMapperSignInCard } from "./cellmapper-signin-card";
@@ -29,6 +30,14 @@ const CellMapperComponent = () => {
             onSignIn={hookData.signIn}
           />
         </div>
+        {/* Show map even when not linked — useful for GPS testing */}
+        <div className="mt-4">
+          <CellMapperMapCard
+            gps={hookData.status?.gps ?? null}
+            isLoading={hookData.isLoading}
+            isStale={hookData.isStale}
+          />
+        </div>
       </div>
     );
   }
@@ -54,13 +63,14 @@ const CellMapperComponent = () => {
           </div>
         )}
 
-      {/*
-        2-column grid for PR 3 (map card ships in PR 5).
-        Will be updated to grid-cols-[1fr_2fr_1fr] when the map card is added.
-      */}
-      <div className="grid grid-cols-1 @3xl/main:grid-cols-2 @5xl/main:grid-cols-[1fr_1fr] gap-4">
+      <div className="grid grid-cols-1 @3xl/main:grid-cols-2 @5xl/main:grid-cols-[1fr_2fr_1fr] gap-4">
         <CellMapperStatusCard
           status={hookData.status}
+          isLoading={hookData.isLoading}
+          isStale={hookData.isStale}
+        />
+        <CellMapperMapCard
+          gps={hookData.status?.gps ?? null}
           isLoading={hookData.isLoading}
           isStale={hookData.isStale}
         />

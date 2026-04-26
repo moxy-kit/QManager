@@ -74,7 +74,8 @@ if [ -f "$CM_STATE_FILE" ] && [ -s "$CM_STATE_FILE" ]; then
     collector_state=$(jq -r '.state // "stopped"' "$CM_STATE_FILE" 2>/dev/null)
     [ -z "$collector_state" ] && collector_state="stopped"
 
-    # last_measurement — collector doesn't write this field yet; always null
+    # last_measurement — read directly from collector state file.
+    # The collector writes this field with {type, provider, band, signal, timestamp}.
     last_measurement=$(jq -c '.last_measurement // null' "$CM_STATE_FILE" 2>/dev/null)
     [ -z "$last_measurement" ] && last_measurement="null"
 
@@ -102,11 +103,12 @@ if [ -f "$CM_UPLOADER_STATE_FILE" ] && [ -s "$CM_UPLOADER_STATE_FILE" ]; then
     uploader_state=$(jq -r '.state // "idle"' "$CM_UPLOADER_STATE_FILE" 2>/dev/null)
     [ -z "$uploader_state" ] && uploader_state="idle"
 
-    # Build last_upload object from uploader state fields
+    # Build last_upload object from uploader state fields.
+    # Frontend expects: {timestamp, batch_size, status} — map from daemon's schema.
     last_upload=$(jq -c '
         if .last_upload_ts > 0 then
-            {ts: .last_upload_ts, result: .last_upload_result,
-             batch_size: .last_batch_size, latency_ms: .last_latency_ms}
+            {timestamp: .last_upload_ts, batch_size: .last_batch_size,
+             status: .last_upload_result, latency_ms: .last_latency_ms}
         else null end
     ' "$CM_UPLOADER_STATE_FILE" 2>/dev/null)
     [ -z "$last_upload" ] && last_upload="null"

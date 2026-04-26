@@ -43,7 +43,7 @@ fi
 
 # --- Ensure DB is initialised ------------------------------------------------
 . /usr/lib/qmanager/cellmapper_db.sh 2>/dev/null
-cm_db_init 2>/dev/null
+cm_db_init >/dev/null 2>&1
 
 if [ ! -f "$CM_DB_PATH" ]; then
     qlog_info "Database not yet created, nothing to purge"

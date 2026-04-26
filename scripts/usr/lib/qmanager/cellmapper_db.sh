@@ -43,7 +43,9 @@ cm_db_init() {
     mkdir -p "$db_dir"
 
     # Apply pragmas and create schema in a single transaction for atomicity.
-    sqlite3 "$CM_DB_PATH" <<'EOF'
+    # Redirect stdout to /dev/null — PRAGMA journal_mode=WAL prints "wal"
+    # to stdout, which pollutes CGI responses.
+    sqlite3 "$CM_DB_PATH" >/dev/null <<'EOF'
 PRAGMA journal_mode=WAL;
 PRAGMA synchronous=NORMAL;
 PRAGMA auto_vacuum=INCREMENTAL;

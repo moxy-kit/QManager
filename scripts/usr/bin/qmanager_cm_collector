@@ -90,6 +90,7 @@ CM_AVG_ROW_BYTES=500
 SESSION_MEASUREMENTS=0    # Total measurements inserted this session
 SESSION_DEDUP_DROPS=0     # Total measurements dropped by dedup this session
 SESSION_ERRORS=0          # Total error events this session
+LAST_MEASUREMENT_JSON=""  # Last inserted measurement payload (JSON)
 
 # GPS state — updated each cycle; reused as fallback when GPS is unavailable.
 GPS_LAST_LAT=""
@@ -252,6 +253,19 @@ _cm_write_state() {
     last_err=$(printf '%s' "$ERROR_RING" | jq -c 'if length > 0 then last else null end' 2>/dev/null)
     [ -z "$last_err" ] && last_err="null"
 
+    # Parse last_measurement JSON or use null
+    local lm_json
+    if [ -n "$LAST_MEASUREMENT_JSON" ]; then
+        lm_json=$(printf '%s' "$LAST_MEASUREMENT_JSON" | jq -c \
+            --argjson ts "$now" \
+            '{type: (.type // .subType // "LTE"),
+              provider: (.provider // "Unknown"),
+              band: ("EARFCN " + ((.ARFCN // .EARFCN // "?") | tostring)),
+              signal: (.signal // 0),
+              timestamp: $ts}' 2>/dev/null)
+    fi
+    [ -z "$lm_json" ] && lm_json="null"
+
     jq -n \
         --arg     state              "$state" \
         --argjson last_collect_ts    "$now" \
@@ -271,6 +285,7 @@ _cm_write_state() {
         --argjson errors             "$ERROR_RING" \
         --arg     adapter_id         "${CM_ADAPTER_ID_CACHED:-unknown}" \
         --arg     adapter_name       "${CM_ADAPTER_NAME_CACHED:-unknown}" \
+        --argjson last_measurement   "$lm_json" \
         '{
             state:                    $state,
             last_collect_ts:          $last_collect_ts,
@@ -293,7 +308,8 @@ _cm_write_state() {
             adapter: {
                 id:   $adapter_id,
                 name: $adapter_name
-            }
+            },
+            last_measurement:         $last_measurement
         }' > "$CM_STATE_FILE" 2>/dev/null
 }
 
@@ -512,6 +528,8 @@ _cm_process_measurements() {
                 _cm_dedup_update "$cell_key" "$lat" "$lon" "$signal" "$snr" "$ca_count"
                 # Signal the parent shell via a flag file since we're in a subshell.
                 echo "1" >> /tmp/cm_insert_count_$$
+                # Save the last inserted measurement for state file reporting.
+                printf '%s' "$geo_obj" > /tmp/cm_last_measurement_$$
             else
                 qlog_warn "cm_collector: DB insert failed for cell $cell_key"
                 _cm_add_error "db" "insert failed for cell $cell_key"
@@ -532,6 +550,13 @@ _cm_process_measurements() {
         rm -f "$flag_file"
         SESSION_MEASUREMENTS=$((SESSION_MEASUREMENTS + inserted))
         SESSION_DEDUP_DROPS=$((SESSION_DEDUP_DROPS + dropped))
+    fi
+
+    # Capture last inserted measurement for state file (written from subshell).
+    local lm_file="/tmp/cm_last_measurement_$$"
+    if [ -f "$lm_file" ]; then
+        LAST_MEASUREMENT_JSON=$(cat "$lm_file")
+        rm -f "$lm_file"
     fi
 }
 

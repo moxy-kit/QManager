@@ -69,7 +69,27 @@ LISTENER_PID=""
 if command -v socat >/dev/null 2>&1; then
     LISTENER_CMD="socat"
 elif command -v nc >/dev/null 2>&1; then
-    LISTENER_CMD="nc"
+    # Verify nc actually supports listen mode — BusyBox nc on some devices
+    # is connect-only (no -l flag). Test by checking --help or trying -l.
+    if nc --help 2>&1 | grep -qi '\-l'; then
+        LISTENER_CMD="nc"
+    else
+        qlog_error "nc is available but has no listen mode (BusyBox connect-only build)"
+        qlog_error "Install socat: opkg update && opkg install socat"
+        # Try to self-heal: install socat if opkg is available
+        if command -v opkg >/dev/null 2>&1; then
+            qlog_info "Attempting to install socat via opkg..."
+            if opkg update >/dev/null 2>&1 && opkg install socat >/dev/null 2>&1; then
+                qlog_info "socat installed successfully — using socat"
+                LISTENER_CMD="socat"
+            else
+                qlog_error "Failed to install socat — NMEA relay cannot start"
+                exit 1
+            fi
+        else
+            exit 1
+        fi
+    fi
 else
     qlog_error "Neither socat nor nc is available — cannot listen for NMEA data"
     exit 1

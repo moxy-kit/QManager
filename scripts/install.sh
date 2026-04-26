@@ -552,6 +552,29 @@ remove_conflicts() {
     return 0
 }
 
+# --- Critical Runtime Dependencies -------------------------------------------
+# These are installed even during OTA updates (--skip-packages) because the
+# relay daemon cannot function without them on devices where BusyBox nc has
+# no listen capability. Best-effort: failures are non-fatal.
+install_critical_deps() {
+    # socat is required for the NMEA UDP relay. BusyBox nc on many Quectel
+    # sleds only supports connect mode (no -l flag), making socat the only
+    # viable UDP listener.
+    if ! command -v socat >/dev/null 2>&1; then
+        info "Installing critical dependency: socat"
+        if command -v opkg >/dev/null 2>&1; then
+            opkg update >>"$LOG_FILE" 2>&1 || true
+            if opkg install socat >>"$LOG_FILE" 2>&1; then
+                info "socat installed successfully"
+            else
+                warn "Failed to install socat — NMEA relay may not work on this device"
+            fi
+        else
+            warn "opkg not available — cannot install socat"
+        fi
+    fi
+}
+
 install_packages() {
     step "Installing required packages"
 
@@ -1213,6 +1236,9 @@ main() {
     if [ "$DO_PACKAGES" = "1" ]; then
         install_packages
     fi
+
+    # Always ensure critical runtime deps are present (even during OTA)
+    install_critical_deps
 
     stop_services
 

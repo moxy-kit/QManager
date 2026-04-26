@@ -473,6 +473,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # --- Signal collector daemon to reload config ----------------------------
     touch "$CM_RELOAD_FLAG"
 
+    # --- Restart service to apply structural changes -------------------------
+    # uci commit from CLI/CGI does NOT emit a ubus config.change event, so
+    # procd's reload_trigger never fires.  Settings that affect which procd
+    # instances are spawned (e.g. gps_source toggling the nmea_relay) require
+    # an explicit restart so start_service() runs fresh and procd reconciles.
+    if [ "$(uci -q get quecmanager.cellmapper.enabled 2>/dev/null)" = "1" ]; then
+        /etc/init.d/qmanager_cellmapper restart >/dev/null 2>&1 &
+    fi
+
     qlog_info "CellMapper settings saved"
     echo '{"success":true}'
     exit 0

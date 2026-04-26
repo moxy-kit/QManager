@@ -827,6 +827,17 @@ install_backend() {
         info "Libraries: $lib_count files -> $LIB_DIR"
     fi
 
+    # --- Cellmapper plugin subdirectories (recursive) ---
+    # install_dir_flat only copies top-level files; adapters/ and gps/ plugin
+    # dirs must be deployed separately with install_tree so the collector can
+    # source them at runtime.
+    if [ -d "$SRC_SCRIPTS/usr/lib/qmanager/cellmapper" ]; then
+        install_tree "$SRC_SCRIPTS/usr/lib/qmanager/cellmapper" "$LIB_DIR/cellmapper"
+        local cm_count
+        cm_count=$(find "$LIB_DIR/cellmapper" -name "*.sh" -type f 2>/dev/null | wc -l | tr -d ' ')
+        info "Cellmapper plugins: $cm_count scripts -> $LIB_DIR/cellmapper"
+    fi
+
     # --- Daemons and utilities (flat) ---
     if [ -d "$SRC_SCRIPTS/usr/bin" ]; then
         local bin_count

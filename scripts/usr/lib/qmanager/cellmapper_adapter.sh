@@ -56,7 +56,11 @@ cm_detect_adapter() {
     if [ -f "$CM_ADAPTER_CACHE" ]; then
         # shellcheck disable=SC1090
         . "$CM_ADAPTER_CACHE"
-        if [ -n "$CM_ADAPTER_ID" ]; then
+        if [ -n "$CM_ADAPTER_ID" ] && [ -f "${CM_ADAPTER_FILE:-}" ]; then
+            # Re-source the adapter script to bring its functions into scope.
+            # The cache only stores variable assignments, not function defs.
+            # shellcheck disable=SC1090
+            . "$CM_ADAPTER_FILE"
             qlog_debug "cm_detect_adapter: using cached adapter '$CM_ADAPTER_ID'"
             return 0
         fi
@@ -86,8 +90,10 @@ cm_detect_adapter() {
             CM_ADAPTER_NAME=$(cm_adapter_name)
             export CM_ADAPTER_ID CM_ADAPTER_NAME
             # Write the cache so subsequent library sources can skip detection.
-            printf 'CM_ADAPTER_ID="%s"\nCM_ADAPTER_NAME="%s"\n' \
-                "$CM_ADAPTER_ID" "$CM_ADAPTER_NAME" > "$CM_ADAPTER_CACHE"
+            # Include the adapter file path so the cache-hit path can re-source
+            # the script and bring its functions into scope.
+            printf 'CM_ADAPTER_ID="%s"\nCM_ADAPTER_NAME="%s"\nCM_ADAPTER_FILE="%s"\n' \
+                "$CM_ADAPTER_ID" "$CM_ADAPTER_NAME" "$adapter_file" > "$CM_ADAPTER_CACHE"
             qlog_info "cm_detect_adapter: selected adapter '$CM_ADAPTER_ID' ($CM_ADAPTER_NAME)"
             return 0
         fi

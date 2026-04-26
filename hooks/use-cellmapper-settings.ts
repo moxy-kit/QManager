@@ -224,7 +224,7 @@ export function useCellMapperSettings(): UseCellMapperSettingsReturn {
         success: !!data.success,
         message: data.message || data.error || "",
         fixType: data.fix?.fix_type,
-        satellites: data.fix?.satellites,
+        satellites: data.fix?.sats,
       };
     } catch {
       return { success: false, message: "Request failed" };

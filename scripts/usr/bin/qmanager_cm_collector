@@ -518,8 +518,8 @@ _cm_process_measurements() {
     local flag_file="/tmp/cm_insert_count_$$"
     if [ -f "$flag_file" ]; then
         local inserted dropped
-        inserted=$(grep -c "^1$" "$flag_file" 2>/dev/null || echo 0)
-        dropped=$(grep -c "^D$" "$flag_file" 2>/dev/null || echo 0)
+        inserted=$(grep -c "^1$" "$flag_file" 2>/dev/null); inserted=${inserted:-0}
+        dropped=$(grep -c "^D$" "$flag_file" 2>/dev/null); dropped=${dropped:-0}
         rm -f "$flag_file"
         SESSION_MEASUREMENTS=$((SESSION_MEASUREMENTS + inserted))
         SESSION_DEDUP_DROPS=$((SESSION_DEDUP_DROPS + dropped))

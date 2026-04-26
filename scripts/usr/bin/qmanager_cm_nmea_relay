@@ -7,9 +7,14 @@
 # gpsdRelay Android app — the phone sends NMEA data directly to this device
 # over UDP, no router or gpsd daemon needed.
 #
-# Listener:
-#   - socat UDP-RECV:<port>,reuseaddr STDOUT (preferred)
-#   - BusyBox nc -lup <port> (fallback)
+# Listener strategy:
+#   1. socat UDP-RECV:<port>,reuseaddr STDOUT  (preferred — persistent)
+#   2. BusyBox nc via FIFO bridge              (fallback — nc reconnects,
+#                                                awk stays alive)
+#
+# BusyBox nc exits after each UDP "session" (one sender disconnects or
+# times out). A named pipe (FIFO) decouples nc from awk so the parser
+# keeps running across nc restarts, preserving accumulated GPS state.
 #
 # NMEA sentences parsed:
 #   $GPGGA / $GNGGA — lat, lon, altitude, satellites, HDOP, fix quality, time
@@ -31,6 +36,7 @@
 STATE_FILE="/tmp/cellmapper_gps_fix.json"
 STATE_TMP="/tmp/cellmapper_gps_fix.json.tmp"
 PID_FILE="/var/run/qmanager_cm_nmea_relay.pid"
+FIFO_PATH="/tmp/cm_nmea_relay.fifo"
 
 # ---------------------------------------------------------------------------
 # Logging — source qlog if available, otherwise use stubs
@@ -56,6 +62,8 @@ UDP_PORT="${UDP_PORT:-29998}"
 # ---------------------------------------------------------------------------
 # Determine listener command (socat preferred, nc fallback)
 # ---------------------------------------------------------------------------
+AWK_PID=""
+SENTINEL_PID=""
 LISTENER_PID=""
 
 if command -v socat >/dev/null 2>&1; then
@@ -72,11 +80,11 @@ fi
 # ---------------------------------------------------------------------------
 cleanup() {
     qlog_info "Shutting down NMEA UDP relay"
-    if [ -n "$LISTENER_PID" ]; then
-        kill "$LISTENER_PID" 2>/dev/null
-        wait "$LISTENER_PID" 2>/dev/null
-    fi
-    rm -f "$STATE_FILE" "$STATE_TMP" "$PID_FILE"
+    [ -n "$LISTENER_PID" ] && kill "$LISTENER_PID" 2>/dev/null
+    [ -n "$AWK_PID" ]      && kill "$AWK_PID" 2>/dev/null
+    [ -n "$SENTINEL_PID" ] && kill "$SENTINEL_PID" 2>/dev/null
+    wait 2>/dev/null
+    rm -f "$STATE_FILE" "$STATE_TMP" "$PID_FILE" "$FIFO_PATH"
     exit 0
 }
 
@@ -212,34 +220,99 @@ $1 ~ /^\$G[PNLB]RMC$/ {
 '
 
 # ---------------------------------------------------------------------------
-# Main loop — start the listener and pipe to awk
+# socat mode — single persistent listener piped to awk
 # ---------------------------------------------------------------------------
-while :; do
-    if [ "$LISTENER_CMD" = "socat" ]; then
+run_socat() {
+    while :; do
         socat UDP-RECV:"$UDP_PORT",reuseaddr STDOUT 2>/dev/null | \
             STATE_FILE="$STATE_FILE" STATE_TMP="$STATE_TMP" awk "$NMEA_AWK" &
         LISTENER_PID=$!
-    else
-        # BusyBox nc: -l = listen, -u = UDP, -p = port
-        # nc -lup exits after the first sender disconnects on some implementations,
-        # so we wrap it in the while loop for automatic reconnect.
-        nc -lup "$UDP_PORT" 2>/dev/null | \
-            STATE_FILE="$STATE_FILE" STATE_TMP="$STATE_TMP" awk "$NMEA_AWK" &
-        LISTENER_PID=$!
+
+        qlog_debug "socat listener started (PID=$LISTENER_PID)"
+        wait "$LISTENER_PID" 2>/dev/null
+        exit_code=$?
+
+        # Signal-killed → let trap handle cleanup
+        [ $exit_code -gt 128 ] && break
+
+        qlog_warn "socat exited (code=$exit_code), restarting in 2 seconds"
+        sleep 2
+    done
+}
+
+# ---------------------------------------------------------------------------
+# nc (BusyBox) mode — FIFO bridge
+# ---------------------------------------------------------------------------
+# BusyBox nc in UDP listen mode exits after each sender disconnects (or
+# immediately on some builds). A named pipe decouples nc from awk:
+#   - awk reads from the FIFO (long-lived, preserves GPS state)
+#   - nc writes to the FIFO (short-lived, restarts in a tight loop)
+# ---------------------------------------------------------------------------
+run_nc_fifo() {
+    # Create FIFO (remove stale one first)
+    rm -f "$FIFO_PATH"
+    mkfifo "$FIFO_PATH" 2>/dev/null || {
+        qlog_error "Failed to create FIFO at $FIFO_PATH"
+        exit 1
+    }
+
+    # Sentinel writer: keeps the FIFO writer-end open so awk never sees
+    # EOF when nc exits. A FIFO reader gets EOF only when ALL writers
+    # close — the sentinel ensures at least one writer is always open.
+    sleep 86400 > "$FIFO_PATH" &
+    SENTINEL_PID=$!
+
+    # Start awk reading from the FIFO — runs for the lifetime of the daemon
+    STATE_FILE="$STATE_FILE" STATE_TMP="$STATE_TMP" awk "$NMEA_AWK" < "$FIFO_PATH" &
+    AWK_PID=$!
+    qlog_info "awk parser started (PID=$AWK_PID) reading from FIFO"
+
+    # Inner loop: nc reconnects and writes to the FIFO.
+    # Each nc invocation handles one UDP "session" then exits.
+    # The sentinel keeps awk alive across nc restarts.
+    nc_failures=0
+    while kill -0 "$AWK_PID" 2>/dev/null; do
+        # BusyBox nc flags vary by build. Try -lup first, fall back to -lu.
+        nc -lup "$UDP_PORT" > "$FIFO_PATH" 2>/dev/null
+        nc_exit=$?
+
+        if [ $nc_exit -gt 128 ]; then
+            # Signalled — outer cleanup will handle it
+            break
+        fi
+
+        # Track rapid failures to avoid spinning at 100% CPU
+        if [ $nc_exit -ne 0 ]; then
+            nc_failures=$((nc_failures + 1))
+            if [ $nc_failures -ge 5 ]; then
+                qlog_warn "nc failing repeatedly (${nc_failures}x), backing off 5s"
+                sleep 5
+                nc_failures=0
+            else
+                sleep 1
+            fi
+        else
+            # nc exited 0 = normal session end. Brief pause to avoid tight loop.
+            nc_failures=0
+            # Don't log every reconnect — it's expected behaviour for BusyBox nc
+            sleep 0.2 2>/dev/null || sleep 1
+        fi
+    done
+
+    # awk died — this shouldn't happen, but log it
+    if ! kill -0 "$AWK_PID" 2>/dev/null; then
+        qlog_error "awk parser exited unexpectedly"
     fi
 
-    qlog_debug "Listener started (PID=$LISTENER_PID)"
+    kill "$SENTINEL_PID" 2>/dev/null
+    rm -f "$FIFO_PATH"
+}
 
-    # Wait for the listener to exit (socat should run indefinitely for UDP)
-    wait "$LISTENER_PID" 2>/dev/null
-    exit_code=$?
-
-    # If we were signalled (cleanup trap), don't restart
-    # trap will handle cleanup
-    if [ $exit_code -gt 128 ]; then
-        break
-    fi
-
-    qlog_warn "Listener exited (code=$exit_code), restarting in 2 seconds"
-    sleep 2
-done
+# ---------------------------------------------------------------------------
+# Main — dispatch to the appropriate listener mode
+# ---------------------------------------------------------------------------
+if [ "$LISTENER_CMD" = "socat" ]; then
+    run_socat
+else
+    run_nc_fifo
+fi

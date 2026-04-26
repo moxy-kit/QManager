@@ -59,7 +59,9 @@ if [ -f "$CM_HASH_FILE" ] && [ -s "$CM_HASH_FILE" ]; then
 fi
 
 # --- Read runtime state from collector daemon --------------------------------
-# Defaults if state file is absent or malformed
+CM_UPLOADER_STATE_FILE="/tmp/qmanager_cm_uploader.json"
+
+# Defaults if state files are absent or malformed
 collector_state="stopped"
 uploader_state="idle"
 last_measurement="null"
@@ -68,29 +70,50 @@ gps_fix="null"
 errors_json="[]"
 
 if [ -f "$CM_STATE_FILE" ] && [ -s "$CM_STATE_FILE" ]; then
-    # Extract fields with safe fallbacks
-    collector_state=$(jq -r '.collector_state // "stopped"' "$CM_STATE_FILE" 2>/dev/null)
-    uploader_state=$(jq  -r '.uploader_state // "idle"' "$CM_STATE_FILE" 2>/dev/null)
+    # Extract fields with safe fallbacks — field names match collector daemon output
+    collector_state=$(jq -r '.state // "stopped"' "$CM_STATE_FILE" 2>/dev/null)
+    [ -z "$collector_state" ] && collector_state="stopped"
 
-    # last_measurement — keep as raw JSON object or null
+    # last_measurement — collector doesn't write this field yet; always null
     last_measurement=$(jq -c '.last_measurement // null' "$CM_STATE_FILE" 2>/dev/null)
     [ -z "$last_measurement" ] && last_measurement="null"
 
-    # last_upload — keep as raw JSON object or null
-    last_upload=$(jq -c '.last_upload // null' "$CM_STATE_FILE" 2>/dev/null)
-    [ -z "$last_upload" ] && last_upload="null"
-
-    # gps.fix from state file
-    gps_fix=$(jq -c '.gps.fix // null' "$CM_STATE_FILE" 2>/dev/null)
+    # GPS fix from collector state — transform to frontend schema (includes type + hdop)
+    gps_fix=$(jq -c '
+        .last_gps_fix // null |
+        if . then
+            {type: (.type // "none"), lat: .lat, lon: .lon, alt: .alt,
+             sats: .sats, speed_kmh: .speed_kmh, hdop: (.hdop // 99)}
+        else null end
+    ' "$CM_STATE_FILE" 2>/dev/null)
     [ -z "$gps_fix" ] && gps_fix="null"
 
     # errors — last 20 entries
     errors_json=$(jq -c '[.errors // [] | .[-20:] | .[]]' "$CM_STATE_FILE" 2>/dev/null)
     [ -z "$errors_json" ] && errors_json="[]"
 
-    qlog_debug "State file read: collector=$collector_state uploader=$uploader_state"
+    qlog_debug "State file read: collector=$collector_state"
 else
-    qlog_debug "No state file found, using defaults"
+    qlog_debug "No collector state file found, using defaults"
+fi
+
+# --- Read uploader state from uploader daemon state file --------------------
+if [ -f "$CM_UPLOADER_STATE_FILE" ] && [ -s "$CM_UPLOADER_STATE_FILE" ]; then
+    uploader_state=$(jq -r '.state // "idle"' "$CM_UPLOADER_STATE_FILE" 2>/dev/null)
+    [ -z "$uploader_state" ] && uploader_state="idle"
+
+    # Build last_upload object from uploader state fields
+    last_upload=$(jq -c '
+        if .last_upload_ts > 0 then
+            {ts: .last_upload_ts, result: .last_upload_result,
+             batch_size: .last_batch_size, latency_ms: .last_latency_ms}
+        else null end
+    ' "$CM_UPLOADER_STATE_FILE" 2>/dev/null)
+    [ -z "$last_upload" ] && last_upload="null"
+
+    qlog_debug "Uploader state file read: uploader=$uploader_state"
+else
+    qlog_debug "No uploader state file found, using defaults"
 fi
 
 # Sanitize collector_state to allowed values
@@ -155,6 +178,15 @@ elif command -v lsusb >/dev/null 2>&1 && lsusb 2>/dev/null | grep -qi "2c7c"; th
     adapter_detected="true"
     adapter_name=$(lsusb 2>/dev/null | grep -i "2c7c" | head -1 | sed 's/.*2c7c:[^ ]* //' | tr -d '\n')
     [ -z "$adapter_name" ] && adapter_name="Quectel Modem"
+fi
+
+# Fallback: read adapter info from collector state file if USB detection failed
+if [ "$adapter_detected" = "false" ] && [ -f "$CM_STATE_FILE" ] && [ -s "$CM_STATE_FILE" ]; then
+    _state_adapter_id=$(jq -r '.adapter.id // empty' "$CM_STATE_FILE" 2>/dev/null)
+    if [ -n "$_state_adapter_id" ] && [ "$_state_adapter_id" != "unknown" ]; then
+        adapter_detected="true"
+        adapter_name=$(jq -r '.adapter.name // "Unknown Modem"' "$CM_STATE_FILE" 2>/dev/null)
+    fi
 fi
 
 # Ensure adapter_name is proper JSON string or null

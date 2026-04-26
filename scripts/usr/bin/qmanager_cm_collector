@@ -72,6 +72,7 @@ CM_PID_FILE="/var/run/qmanager_cm_collector.pid"
 CM_STATE_FILE="/tmp/qmanager_cellmapper.json"
 CM_RELOAD_FLAG="/tmp/qmanager_cellmapper_reload"
 CM_DEDUP_DIR="/tmp/cellmapper_dedup"
+CM_PAUSE_FLAG="/tmp/qmanager_cellmapper_pause"
 
 # GPS fix age threshold in seconds. Fixes older than this are discarded.
 CM_GPS_MAX_AGE_SEC=60
@@ -97,6 +98,8 @@ GPS_LAST_ALT="0"
 GPS_LAST_SPEED="0"
 GPS_LAST_SATS="0"
 GPS_LAST_TS="0"           # Unix timestamp of the last valid GPS fix
+GPS_LAST_FIX_TYPE="none"  # "3D" | "2D" | "none"
+GPS_LAST_HDOP="99"        # Horizontal Dilution of Precision
 
 # Motion detection state
 MOTION_STATE="stationary" # "moving" | "stationary"
@@ -228,12 +231,14 @@ _cm_write_state() {
     local now
     now=$(date +%s)
 
-    local lat  lon  alt  sats  speed
+    local lat  lon  alt  sats  speed  fix_type  hdop
     lat="${GPS_LAST_LAT:-0}"
     lon="${GPS_LAST_LON:-0}"
     alt="${GPS_LAST_ALT:-0}"
     sats="${GPS_LAST_SATS:-0}"
     speed="${GPS_LAST_SPEED:-0}"
+    fix_type="${GPS_LAST_FIX_TYPE:-none}"
+    hdop="${GPS_LAST_HDOP:-99}"
 
     local interval
     if [ "$MOTION_STATE" = "moving" ]; then
@@ -255,6 +260,8 @@ _cm_write_state() {
         --argjson alt                "$alt" \
         --argjson sats               "$sats" \
         --argjson speed              "$speed" \
+        --arg     fix_type           "$fix_type" \
+        --argjson hdop               "$hdop" \
         --arg     motion             "$MOTION_STATE" \
         --argjson interval_sec       "$interval" \
         --argjson measurements       "$SESSION_MEASUREMENTS" \
@@ -268,11 +275,13 @@ _cm_write_state() {
             state:                    $state,
             last_collect_ts:          $last_collect_ts,
             last_gps_fix: {
+                type:      $fix_type,
                 lat:       $lat,
                 lon:       $lon,
                 alt:       $alt,
                 sats:      $sats,
-                speed_kmh: $speed
+                speed_kmh: $speed,
+                hdop:      $hdop
             },
             motion:                   $motion,
             interval_sec:             $interval_sec,
@@ -587,6 +596,16 @@ qlog_info "cm_collector: initialization complete — entering main loop"
 while true; do
 
     # -----------------------------------------------------------------------
+    # A0. Check for pause flag.
+    # -----------------------------------------------------------------------
+    if [ -f "$CM_PAUSE_FLAG" ]; then
+        qlog_debug "cm_collector: paused by user request"
+        _cm_write_state "paused"
+        sleep "$CFG_INTERVAL_MOVING"
+        continue
+    fi
+
+    # -----------------------------------------------------------------------
     # A. Check for UCI reload flag.
     # -----------------------------------------------------------------------
     if [ -f "$CM_RELOAD_FLAG" ]; then
@@ -609,6 +628,7 @@ while true; do
         _gps_spd=$(printf '%s' "$_gps_raw" | jq -r '.speed_kmh // 0' 2>/dev/null)
         _gps_sat=$(printf '%s' "$_gps_raw" | jq -r '.sats  // 0'     2>/dev/null)
         _fix_type=$(printf '%s' "$_gps_raw" | jq -r '.fix_type // "none"' 2>/dev/null)
+        _gps_hdop=$(printf '%s' "$_gps_raw" | jq -r '.hdop // empty' 2>/dev/null)
 
         if [ -n "$_gps_lat" ] && [ -n "$_gps_lon" ] && [ "$_fix_type" != "none" ]; then
             GPS_LAST_LAT="$_gps_lat"
@@ -617,6 +637,8 @@ while true; do
             GPS_LAST_SPEED="${_gps_spd:-0}"
             GPS_LAST_SATS="${_gps_sat:-0}"
             GPS_LAST_TS=$(date +%s)
+            GPS_LAST_FIX_TYPE="$_fix_type"
+            GPS_LAST_HDOP="${_gps_hdop:-99}"
             _gps_ok=1
         else
             qlog_debug "cm_collector: GPS fix returned but fix_type=none or coords empty"

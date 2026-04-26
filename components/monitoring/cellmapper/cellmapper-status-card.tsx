@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { authFetch } from "@/lib/auth-fetch";
 import {
   Card,
   CardContent,
@@ -28,12 +30,15 @@ import {
 } from "lucide-react";
 import { formatTimeAgo } from "@/types/modem-status";
 
+const CONTROL_ENDPOINT = "/cgi-bin/quecmanager/cellmapper/control.sh";
+
 // =============================================================================
 // CellMapperStatusCard — Shows collector, GPS, adapter, account status, and
 // the last measurement block, with Pause/Resume and Restart action buttons.
 // =============================================================================
 
 interface CellMapperStatusCardProps {
+  onRefresh?: () => void;
   status: {
     service: {
       enabled: boolean;
@@ -146,8 +151,35 @@ export function CellMapperStatusCard({
   isLoading,
   isStale,
   lastUpdated,
+  onRefresh,
 }: CellMapperStatusCardProps) {
   const { t } = useTranslation("monitoring");
+  const [controlLoading, setControlLoading] = useState<"pause" | "resume" | "restart" | null>(null);
+
+  const sendControlAction = useCallback(
+    async (action: "pause" | "resume" | "restart") => {
+      setControlLoading(action);
+      try {
+        const resp = await authFetch(CONTROL_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          toast.success(data.message ?? `Collector ${action} successful`);
+          onRefresh?.();
+        } else {
+          toast.error(data.detail ?? data.error ?? `Failed to ${action} collector`);
+        }
+      } catch {
+        toast.error(`Failed to ${action} collector`);
+      } finally {
+        setControlLoading(null);
+      }
+    },
+    [onRefresh],
+  );
 
   // Compute human-readable "ago" string for stale warnings
   const staleAgo = useMemo(() => {
@@ -388,14 +420,18 @@ export function CellMapperStatusCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                // Placeholder — backend wiring in future PR
-              }}
+              onClick={() =>
+                sendControlAction(isPaused ? "resume" : "pause")
+              }
               disabled={
-                collectorState === "error" || collectorState === "starting"
+                collectorState === "error" ||
+                collectorState === "starting" ||
+                controlLoading !== null
               }
             >
-              {isPaused ? (
+              {controlLoading === "pause" || controlLoading === "resume" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : isPaused ? (
                 <>
                   <PlayIcon className="size-3.5" />
                   {t("cellmapper.action_resume")}
@@ -410,11 +446,14 @@ export function CellMapperStatusCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                // Placeholder — backend wiring in future PR
-              }}
+              onClick={() => sendControlAction("restart")}
+              disabled={controlLoading !== null}
             >
-              <RefreshCcwIcon className="size-3.5" />
+              {controlLoading === "restart" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCcwIcon className="size-3.5" />
+              )}
               {t("cellmapper.action_restart")}
             </Button>
           </div>

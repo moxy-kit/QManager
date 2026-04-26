@@ -75,7 +75,7 @@ SRC_DEPS="$INSTALL_DIR/dependencies"
 # qcmd wraps atcli_smd11 with `timeout` as a last-ditch safety net, and the
 # installer's run_capture_timeout helper uses it too. Cheap guarantee.
 REQUIRED_PACKAGES="jq curl coreutils-timeout websocat ethtool"
-OPTIONAL_PACKAGES="msmtp ookla-speedtest"
+OPTIONAL_PACKAGES="socat msmtp ookla-speedtest"
 # Removed before install to avoid /dev/smd11 conflicts and sms_tool collision
 CONFLICT_PACKAGES="sms-tool socat-at-bridge socat"
 
@@ -575,6 +575,7 @@ install_packages() {
     info "Optional packages available:"
     for pkg in $OPTIONAL_PACKAGES; do
         case "$pkg" in
+            socat)           printf "    %-18s — CellMapper NMEA relay (recommended)\n" "$pkg" ;;
             msmtp)           printf "    %-18s — email alerts\n" "$pkg" ;;
             ethtool)         printf "    %-18s — ethernet link speed control\n" "$pkg" ;;
             ookla-speedtest) printf "    %-18s — speed test\n" "$pkg" ;;

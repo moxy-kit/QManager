@@ -378,6 +378,34 @@ gps_test_http() {
 }
 
 # =============================================================================
+# Source: nmea_udp (NMEA UDP relay from gpsdRelay)
+# Reads the state file written by the qmanager_cm_nmea_relay daemon.
+# =============================================================================
+gps_test_nmea_udp() {
+    local state_file="/tmp/cellmapper_gps_fix.json"
+
+    if [ ! -f "$state_file" ]; then
+        jq -n '{"success":false,"error":"source_unavailable","detail":"NMEA UDP relay not running \u2014 no state file found. Ensure the relay daemon is started and receiving data."}'
+        return
+    fi
+
+    local fix_json epoch now age
+    fix_json=$(cat "$state_file" 2>/dev/null)
+    epoch=$(printf '%s' "$fix_json" | jq -r '._epoch // 0' 2>/dev/null)
+    now=$(date +%s)
+    age=$(( now - epoch ))
+
+    if [ "$age" -gt 10 ]; then
+        jq -n --argjson age "$age" \
+            '{"success":true,"source":"nmea_udp","fix":null,"error":"no_fix","detail":("GPS data is " + ($age|tostring) + "s old \u2014 check that gpsdRelay is sending to this device")}'
+        return
+    fi
+
+    # Strip internal _epoch field and wrap in response envelope
+    printf '%s' "$fix_json" | jq '{success:true, source:"nmea_udp", fix: (del(._epoch))}'
+}
+
+# =============================================================================
 # Dispatch to the appropriate source handler
 # =============================================================================
 case "$GPS_SOURCE" in
@@ -395,6 +423,9 @@ case "$GPS_SOURCE" in
         ;;
     http)
         gps_test_http "$HTTP_URL"
+        ;;
+    nmea_udp)
+        gps_test_nmea_udp
         ;;
     *)
         jq -n --arg s "$GPS_SOURCE" \

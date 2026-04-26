@@ -114,6 +114,29 @@ cm_gps_get_fix() {
             qlog_warn "cm_gps_get_fix: gpsd GPS provider not available"
             ;;
 
+        gpsd_local)
+            if command -v cm_gps_gpsd_available >/dev/null 2>&1 && \
+               cm_gps_gpsd_available; then
+                local gpsd_port_local
+                gpsd_port_local=$(cm_uci_get "gpsd_port" "2947")
+                cm_gps_gpsd_get_fix "127.0.0.1" "$gpsd_port_local"
+                return $?
+            fi
+            qlog_warn "cm_gps_get_fix: gpsd (local) GPS provider not available"
+            ;;
+
+        gpsd_remote)
+            if command -v cm_gps_gpsd_available >/dev/null 2>&1 && \
+               cm_gps_gpsd_available; then
+                local gpsd_host_remote gpsd_port_remote
+                gpsd_host_remote=$(cm_uci_get "gpsd_host" "127.0.0.1")
+                gpsd_port_remote=$(cm_uci_get "gpsd_port" "2947")
+                cm_gps_gpsd_get_fix "$gpsd_host_remote" "$gpsd_port_remote"
+                return $?
+            fi
+            qlog_warn "cm_gps_get_fix: gpsd (remote) GPS provider not available"
+            ;;
+
         nmea)
             if command -v cm_gps_nmea_available >/dev/null 2>&1 && \
                cm_gps_nmea_available; then
@@ -130,6 +153,15 @@ cm_gps_get_fix() {
                 return $?
             fi
             qlog_warn "cm_gps_get_fix: HTTP JSON GPS provider not available"
+            ;;
+
+        nmea_udp)
+            if command -v cm_gps_nmea_udp_available >/dev/null 2>&1 && \
+               cm_gps_nmea_udp_available; then
+                cm_gps_nmea_udp_get_fix
+                return $?
+            fi
+            qlog_warn "cm_gps_get_fix: NMEA UDP relay provider not available"
             ;;
 
         *)
@@ -154,5 +186,7 @@ cm_gps_provider_list() {
         cm_gps_nmea_available     && printf 'nmea\n'
     command -v cm_gps_http_json_available >/dev/null 2>&1 && \
         cm_gps_http_json_available && printf 'http\n'
+    command -v cm_gps_nmea_udp_available >/dev/null 2>&1 && \
+        cm_gps_nmea_udp_available && printf 'nmea_udp\n'
     return 0
 }

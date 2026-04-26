@@ -16,13 +16,14 @@ const TEST_ENDPOINT = "/cgi-bin/quecmanager/cellmapper/test.sh";
 
 export interface CellMapperSettings {
   enabled: boolean;
-  gps_source: "modem" | "gpsd_local" | "gpsd_remote" | "nmea" | "http";
+  gps_source: "modem" | "gpsd_local" | "gpsd_remote" | "nmea" | "nmea_udp" | "http";
   gpsd_host: string;
   gpsd_port: number;
   nmea_device: string;
   nmea_baud: number;
   http_gps_url: string;
   http_gps_auth: string;
+  nmea_udp_port: number;
   interval_moving: number;
   interval_stopped: number;
   neighbor_interval: number;

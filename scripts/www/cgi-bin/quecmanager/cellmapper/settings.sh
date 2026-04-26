@@ -101,6 +101,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
     _nmea_baud=$(       cm_uci_get nmea_baud        9600)
     _http_gps_url=$(    cm_uci_get http_gps_url     "")
     _http_gps_auth=$(   cm_uci_get http_gps_auth    "")
+    _nmea_udp_port=$(   cm_uci_get nmea_udp_port    29998)
     _interval_moving=$( cm_uci_get interval_moving  5)
     _interval_stopped=$(cm_uci_get interval_stopped 60)
     _neighbor_interval=$(cm_uci_get neighbor_interval 30)
@@ -143,6 +144,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
         --argjson nmea_baud         "$_nmea_baud" \
         --arg     http_gps_url      "$_http_gps_url" \
         --arg     http_gps_auth     "$_http_gps_auth" \
+        --argjson nmea_udp_port     "$_nmea_udp_port" \
         --argjson interval_moving   "$_interval_moving" \
         --argjson interval_stopped  "$_interval_stopped" \
         --argjson neighbor_interval "$_neighbor_interval" \
@@ -173,6 +175,7 @@ if [ "$REQUEST_METHOD" = "GET" ]; then
             nmea_baud:         $nmea_baud,
             http_gps_url:      $http_gps_url,
             http_gps_auth:     $http_gps_auth,
+            nmea_udp_port:     $nmea_udp_port,
             interval_moving:   $interval_moving,
             interval_stopped:  $interval_stopped,
             neighbor_interval: $neighbor_interval,
@@ -227,8 +230,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # -------------------------------------------------------------------------
     val=$(printf '%s' "$POST_DATA" | jq -r '.gps_source // empty' 2>/dev/null)
     if [ -n "$val" ]; then
-        validate_enum "$val" modem gpsd_local gpsd_remote nmea http || \
-            reject_field "gps_source" "must be one of: modem, gpsd_local, gpsd_remote, nmea, http"
+        validate_enum "$val" modem gpsd_local gpsd_remote nmea nmea_udp http || \
+            reject_field "gps_source" "must be one of: modem, gpsd_local, gpsd_remote, nmea, nmea_udp, http"
         uci -q set "quecmanager.cellmapper.gps_source=$val"
     fi
 
@@ -280,6 +283,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     val=$(printf '%s' "$POST_DATA" | jq -r '.http_gps_auth // empty' 2>/dev/null)
     if [ -n "$val" ]; then
         uci -q set "quecmanager.cellmapper.http_gps_auth=$val"
+    fi
+
+    # -------------------------------------------------------------------------
+    # nmea_udp_port (integer 1024-65535)
+    # -------------------------------------------------------------------------
+    val=$(printf '%s' "$POST_DATA" | jq -r '.nmea_udp_port // empty' 2>/dev/null)
+    if [ -n "$val" ]; then
+        validate_int "$val" 1024 65535 || reject_field "nmea_udp_port" "must be 1024-65535"
+        uci -q set "quecmanager.cellmapper.nmea_udp_port=$val"
     fi
 
     # -------------------------------------------------------------------------

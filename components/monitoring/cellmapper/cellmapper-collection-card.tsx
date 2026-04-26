@@ -49,6 +49,7 @@ interface CellMapperCollectionCardProps {
     nmea_baud: number;
     http_gps_url: string;
     http_gps_auth: string;
+    nmea_udp_port: number;
     interval_moving: number;
     interval_stopped: number;
     neighbor_interval: number;
@@ -160,6 +161,9 @@ function CollectionForm({
   );
   const [httpUrl, setHttpUrl] = useState(settings?.http_gps_url ?? "");
   const [httpAuth, setHttpAuth] = useState(settings?.http_gps_auth ?? "");
+  const [nmeaUdpPort, setNmeaUdpPort] = useState(
+    String(settings?.nmea_udp_port ?? 29998),
+  );
   const [intervalMoving, setIntervalMoving] = useState(
     String(settings?.interval_moving ?? 5),
   );
@@ -182,6 +186,7 @@ function CollectionForm({
       nmeaBaud !== String(settings.nmea_baud) ||
       httpUrl !== settings.http_gps_url ||
       httpAuth !== settings.http_gps_auth ||
+      nmeaUdpPort !== String(settings.nmea_udp_port ?? 29998) ||
       intervalMoving !== String(settings.interval_moving) ||
       intervalStopped !== String(settings.interval_stopped) ||
       neighborInterval !== String(settings.neighbor_interval)
@@ -196,6 +201,7 @@ function CollectionForm({
     nmeaBaud,
     httpUrl,
     httpAuth,
+    nmeaUdpPort,
     intervalMoving,
     intervalStopped,
     neighborInterval,
@@ -239,6 +245,7 @@ function CollectionForm({
       nmea_baud: parseInt(nmeaBaud, 10),
       http_gps_url: httpUrl,
       http_gps_auth: httpAuth,
+      nmea_udp_port: parseInt(nmeaUdpPort, 10),
       interval_moving: parseInt(intervalMoving, 10),
       interval_stopped: parseInt(intervalStopped, 10),
       neighbor_interval: parseInt(neighborInterval, 10),
@@ -264,7 +271,9 @@ function CollectionForm({
             ? "cellmapper.gps_hint_nmea"
             : gpsSource === "http"
               ? "cellmapper.gps_hint_http"
-              : "cellmapper.gps_hint_modem";
+              : gpsSource === "nmea_udp"
+                ? "cellmapper.gps_hint_nmea_udp"
+                : "cellmapper.gps_hint_modem";
 
   return (
     <Card className="@container/card">
@@ -334,6 +343,9 @@ function CollectionForm({
                   </SelectItem>
                   <SelectItem value="nmea">
                     {t("cellmapper.gps_source_nmea")}
+                  </SelectItem>
+                  <SelectItem value="nmea_udp">
+                    {t("cellmapper.gps_source_nmea_udp")}
                   </SelectItem>
                   <SelectItem value="http">
                     {t("cellmapper.gps_source_http")}
@@ -449,6 +461,38 @@ function CollectionForm({
                     </Select>
                     <FieldDescription>
                       {t("cellmapper.collection_nmea_baud_description")}
+                    </FieldDescription>
+                  </Field>
+                </motion.div>
+              )}
+
+              {gpsSource === "nmea_udp" && (
+                <motion.div
+                  key="nmea_udp"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  style={{ overflow: "hidden" }}
+                  className="grid gap-4"
+                >
+                  <Field>
+                    <FieldLabel htmlFor="nmea-udp-port">
+                      {t("cellmapper.collection_nmea_udp_port_label")}
+                    </FieldLabel>
+                    <Input
+                      id="nmea-udp-port"
+                      type="number"
+                      min="1024"
+                      max="65535"
+                      placeholder="29998"
+                      className="max-w-sm"
+                      value={nmeaUdpPort}
+                      onChange={(e) => setNmeaUdpPort(e.target.value)}
+                      disabled={!enabled}
+                    />
+                    <FieldDescription>
+                      {t("cellmapper.collection_nmea_udp_port_description")}
                     </FieldDescription>
                   </Field>
                 </motion.div>
